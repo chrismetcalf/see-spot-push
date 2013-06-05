@@ -1,0 +1,79 @@
+#!/usr/bin/env ruby
+
+require 'thor'
+require 'yaml'
+require 'soda/client'
+require 'httparty'
+
+class Spot
+  include HTTParty
+  base_uri 'https://api.findmespot.com'
+
+  def initialize(config)
+    @config = config
+  end
+
+  def fetch(options = {})
+    self.class.get("/spot-main-web/consumer/rest-api/2.0/public/feed/#{@config[:feed_id]}/message.json", options)
+  end
+end
+
+class Pusher < Thor
+  include Thor::Actions
+
+  option :config_file, :required => true
+
+  no_commands do
+    # Dependency that loads the config file
+    def load_config
+      @config = YAML::load(File.open(options[:config_file])).inject({}){ |memo, (k,v)| memo[k.to_sym] = v; memo}
+    end
+  end
+
+  desc "update", "Update a dataset based on a SPOT feed"
+  def update
+    load_config
+
+    # Fetch latest updates from SPOT
+    spot = Spot.new(@config)
+
+    # Build up our payload for SODA
+    updates = []
+    spot.fetch["response"]["feedMessageResponse"]["messages"]["message"].each do |message|
+      require 'pry'; binding.pry
+      updates << {
+        "message_id" => message["id"],
+        "spot_name" => message["messengerName"],
+        "update_time" => message["unixTime"],
+        "message_type" => message["messageType"],
+        "message" => message["messageContent"],
+        "battery_state" => message["batteryState"],
+        "location" => { "latitude" => message["latitude"], "longitude" => message["longitude"] },
+      }
+    end
+
+    # Push to Socrata
+    client = SODA::Client.new(@config)
+
+    client.post(@config[:dataset_uid], updates)
+  end
+
+  private
+    def self.load_config
+    end
+
+end
+
+# Ignore SSL
+require 'net/http'
+require 'openssl'
+
+class Net::HTTP
+  alias_method :origConnect, :connect
+  def connect
+    self.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    origConnect
+  end
+end
+
+Pusher.start

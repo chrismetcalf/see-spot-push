@@ -1,0 +1,8 @@
+username: your.email@domain.com
+password: yourpassword
+app_token: yourapptoken
+domain: site.domain.demo.socrata.com
+
+dataset_uid: abcd-1234
+
+feed_id: spot_feed_id
