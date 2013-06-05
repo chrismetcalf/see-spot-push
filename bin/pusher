@@ -40,7 +40,6 @@ class Pusher < Thor
     # Build up our payload for SODA
     updates = []
     spot.fetch["response"]["feedMessageResponse"]["messages"]["message"].each do |message|
-      require 'pry'; binding.pry
       updates << {
         "message_id" => message["id"],
         "spot_name" => message["messengerName"],
